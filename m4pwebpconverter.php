@@ -107,7 +107,7 @@ class M4pWebpConverter extends Module
     public function getContent()
     {
         // AJAX endpoint — must be handled before any HTML output
-        if (Tools::getValue('action') === 'convertBatch') {
+        if (Tools::getValue('ajax') && Tools::getValue('m4p_action') === 'convertBatch') {
             $this->ajaxConvertBatch();
         }
 
@@ -222,11 +222,13 @@ class M4pWebpConverter extends Module
             ? sprintf($this->l('Convert images for up to %d products'), $maxProducts)
             : $this->l('Convert images for all products');
 
-        $ajaxUrl = $this->context->link->getAdminLink('AdminModules')
-            . '&configure=' . $this->name
-            . '&tab_module=' . $this->tab
-            . '&module_name=' . $this->name
-            . '&action=convertBatch';
+        $ajaxUrl = $this->context->link->getAdminLink('AdminModules', true, [], [
+            'configure' => $this->name,
+            'tab_module' => $this->tab,
+            'module_name' => $this->name,
+            'ajax' => 1,
+            'm4p_action' => 'convertBatch',
+        ]);
 
         return '
         <div class="panel">
@@ -279,10 +281,11 @@ class M4pWebpConverter extends Module
 
     protected function getAdminBaseUrl()
     {
-        return $this->context->link->getAdminLink('AdminModules', false)
-            . '&configure=' . $this->name
-            . '&tab_module=' . $this->tab
-            . '&module_name=' . $this->name;
+        return $this->context->link->getAdminLink('AdminModules', false, [], [
+            'configure' => $this->name,
+            'tab_module' => $this->tab,
+            'module_name' => $this->name,
+        ]);
     }
 
     // -------------------------------------------------------------------------
