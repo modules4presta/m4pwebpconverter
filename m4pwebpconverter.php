@@ -311,7 +311,13 @@ class M4pWebpConverter extends Module
      */
     private function ajaxConvertBatch(): void
     {
-        $offset = (int) Tools::getValue('offset', 0);
+        // getContent() is only reached through AdminModules (token-checked), but the
+        // batch endpoint mutates files, so require the employee permission explicitly.
+        if (!$this->context->employee || !$this->context->employee->isLoggedBack()) {
+            $this->respondJson(['success' => false, 'error' => 'unauthorized'], 403);
+        }
+
+        $offset = max(0, (int) Tools::getValue('offset', 0));
         $batchSize = max(1, min(50, (int) Tools::getValue('batchSize', self::AJAX_BATCH_SIZE)));
         $maxProducts = (int) $this->getCfg(self::CONFIG_MAX_PRODUCTS);
         $quality = (int) $this->getCfg(self::CONFIG_QUALITY);
@@ -381,14 +387,42 @@ class M4pWebpConverter extends Module
 
         $newOffset = $offset + count($rows);
 
-        header('Content-Type: application/json; charset=utf-8');
-        die(json_encode([
+        // An empty batch always terminates the run. Without this the client would
+        // keep re-requesting the same offset forever whenever $total is larger
+        // than the number of rows actually returned (e.g. rows deleted mid-run).
+        $done = $rows === [] || $newOffset >= $total;
+
+        $this->respondJson([
             'success' => true,
             'total' => $total,
             'offset' => $newOffset,
-            'done' => $newOffset >= $total,
+            'done' => $done,
             'results' => $results,
-        ]));
+        ]);
+    }
+
+    /**
+     * Emits a JSON response and terminates. Any buffered output (notices, other
+     * modules' echoes) is discarded first so the payload stays parseable.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function respondJson(array $payload, int $statusCode = 200): void
+    {
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        $json = json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE);
+
+        if ($json === false) {
+            $json = '{"success":false,"error":"encoding_failed"}';
+            $statusCode = 500;
+        }
+
+        http_response_code($statusCode);
+        header('Content-Type: application/json; charset=utf-8');
+        die($json);
     }
 
     /**
