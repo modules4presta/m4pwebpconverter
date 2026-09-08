@@ -49,6 +49,19 @@
                         return;
                     }
 
+                    // Safety net: if the server stops advancing the offset, bail out
+                    // instead of hammering the same batch forever.
+                    if (response.offset <= M4pConverter.offset && !response.done) {
+                        M4pConverter.appendLog({
+                            status: 'error',
+                            id_image: '-',
+                            product_name: 'Conversion stalled at offset ' + M4pConverter.offset,
+                            file: null
+                        });
+                        M4pConverter.onDone();
+                        return;
+                    }
+
                     M4pConverter.total = response.total;
                     M4pConverter.offset = response.offset;
 
@@ -87,6 +100,15 @@
             });
         },
 
+        escape: function (value) {
+            return String(value === null || value === undefined ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        },
+
         appendLog: function (item) {
             var map = {
                 converted: { cls: 'success', icon: '&#10003;' },
@@ -94,10 +116,12 @@
                 error:     { cls: 'danger',  icon: '&#10007;' }
             };
             var style = map[item.status] || { cls: 'default', icon: '' };
-            var text = style.icon + ' [img #' + item.id_image + '] '
-                + item.product_name + ' &mdash; ' + item.status;
+            // product_name and file come from the database — escape them, the rest
+            // of this string is trusted markup.
+            var text = style.icon + ' [img #' + this.escape(item.id_image) + '] '
+                + this.escape(item.product_name) + ' &mdash; ' + this.escape(item.status);
             if (item.file) {
-                text += ' <small style="opacity:.7">&rarr; ' + item.file + '</small>';
+                text += ' <small style="opacity:.7">&rarr; ' + this.escape(item.file) + '</small>';
             }
 
             var $li = $('<li>')

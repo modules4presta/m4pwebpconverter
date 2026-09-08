@@ -25,13 +25,38 @@ class M4pWebpConverter extends Module
     public const CONFIG_MAX_PRODUCTS = 'M4PWEBP_MAX_PRODUCTS';
     public const CONFIG_FORCE_REGEN = 'M4PWEBP_FORCE_REGEN';
     public const CONFIG_ACTIVE_ONLY = 'M4PWEBP_ACTIVE_ONLY';
+    public const CONFIG_THUMBS = 'M4PWEBP_THUMBS';
+    public const CONFIG_SERVE_FRONT = 'M4PWEBP_SERVE_FRONT';
+
+    /** Suffix appended to the source filename to build the WebP twin. */
+    public const WEBP_SUFFIX = '-new_format.webp';
+
+    /** Extensions we can read and that are worth re-encoding to WebP. */
+    private const SOURCE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif'];
+
     private const AJAX_BATCH_SIZE = 10;
 
-    /** @var Db */
+    /** @var Db|null */
     private $db;
 
     /** @var array<string, string> Local cache for Configuration::get() reads. */
     private $config = [];
+
+    /** @var array<string, bool> Per-request cache of WebP existence checks. */
+    private $webpExistsCache = [];
+
+    /**
+     * Lazily resolved DB handle — avoids opening a connection just because the
+     * module was instantiated (e.g. on the module list page).
+     */
+    private function db(): Db
+    {
+        if ($this->db === null) {
+            $this->db = Db::getInstance();
+        }
+
+        return $this->db;
+    }
 
     /**
      * Returns a cached configuration value.
@@ -55,16 +80,17 @@ class M4pWebpConverter extends Module
     {
         $this->name = 'm4pwebpconverter';
         $this->tab = 'administration';
-        $this->version = '1.0.0';
+        $this->version = '1.1.0';
         $this->author = 'Modules4Presta.io';
         $this->need_instance = 0;
         $this->bootstrap = true;
-        $this->db = Db::getInstance();
 
         parent::__construct();
 
         $this->displayName = $this->l('M4P WebP Converter');
-        $this->description = $this->l('Converts product images to WebP format with configurable quality.');
+        $this->description = $this->l(
+            'Converts product images to WebP and serves them on the front office to cut page weight and improve Core Web Vitals.'
+        );
         $this->confirmUninstall = $this->l('Are you sure you want to uninstall this module?');
         $this->ps_versions_compliancy = ['min' => '8.0.0', 'max' => '9.99.99'];
     }
@@ -85,10 +111,13 @@ class M4pWebpConverter extends Module
             && $this->registerHook('actionObjectImageUpdateAfter')
             && $this->registerHook('actionAfterCreateProductImageHandler')
             && $this->registerHook('actionAfterUpdateProductImageHandler')
+            && $this->registerHook('actionOutputHTMLBefore')
             && Configuration::updateValue(self::CONFIG_QUALITY, 85)
             && Configuration::updateValue(self::CONFIG_MAX_PRODUCTS, 0)
             && Configuration::updateValue(self::CONFIG_FORCE_REGEN, 0)
-            && Configuration::updateValue(self::CONFIG_ACTIVE_ONLY, 0);
+            && Configuration::updateValue(self::CONFIG_ACTIVE_ONLY, 0)
+            && Configuration::updateValue(self::CONFIG_THUMBS, 1)
+            && Configuration::updateValue(self::CONFIG_SERVE_FRONT, 1);
     }
 
     public function uninstall()
@@ -97,7 +126,9 @@ class M4pWebpConverter extends Module
             && Configuration::deleteByName(self::CONFIG_QUALITY)
             && Configuration::deleteByName(self::CONFIG_MAX_PRODUCTS)
             && Configuration::deleteByName(self::CONFIG_FORCE_REGEN)
-            && Configuration::deleteByName(self::CONFIG_ACTIVE_ONLY);
+            && Configuration::deleteByName(self::CONFIG_ACTIVE_ONLY)
+            && Configuration::deleteByName(self::CONFIG_THUMBS)
+            && Configuration::deleteByName(self::CONFIG_SERVE_FRONT);
     }
 
     // -------------------------------------------------------------------------
@@ -118,6 +149,8 @@ class M4pWebpConverter extends Module
             $maxProducts = (int) Tools::getValue(self::CONFIG_MAX_PRODUCTS);
             $forceRegen = (int) (bool) Tools::getValue(self::CONFIG_FORCE_REGEN);
             $activeOnly = (int) (bool) Tools::getValue(self::CONFIG_ACTIVE_ONLY);
+            $thumbs = (int) (bool) Tools::getValue(self::CONFIG_THUMBS);
+            $serveFront = (int) (bool) Tools::getValue(self::CONFIG_SERVE_FRONT);
 
             if ($quality < 1 || $quality > 100) {
                 $output .= $this->displayError($this->l('Quality must be between 1 and 100.'));
@@ -126,12 +159,9 @@ class M4pWebpConverter extends Module
                 Configuration::updateValue(self::CONFIG_MAX_PRODUCTS, max(0, $maxProducts));
                 Configuration::updateValue(self::CONFIG_FORCE_REGEN, $forceRegen);
                 Configuration::updateValue(self::CONFIG_ACTIVE_ONLY, $activeOnly);
-                unset(
-                    $this->config[self::CONFIG_QUALITY],
-                    $this->config[self::CONFIG_MAX_PRODUCTS],
-                    $this->config[self::CONFIG_FORCE_REGEN],
-                    $this->config[self::CONFIG_ACTIVE_ONLY]
-                );
+                Configuration::updateValue(self::CONFIG_THUMBS, $thumbs);
+                Configuration::updateValue(self::CONFIG_SERVE_FRONT, $serveFront);
+                $this->config = [];
                 $output .= $this->displayConfirmation($this->l('Settings saved successfully.'));
             }
         }
@@ -148,7 +178,7 @@ class M4pWebpConverter extends Module
         $helper->table = $this->table;
         $helper->module = $this;
         $helper->default_form_language = $this->context->language->id;
-        $helper->allow_employee_form_lang = (int) $this->getCfg('PS_BO_ALLOW_EMPLOYEE_FORM_LANG');
+        $helper->allow_employee_form_lang = (int) Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG');
         $helper->identifier = $this->identifier;
         $helper->submit_action = 'submitM4pWebpConfig';
         $helper->currentIndex = $this->getAdminBaseUrl();
@@ -184,6 +214,32 @@ class M4pWebpConverter extends Module
                             'Limit how many products are processed during bulk conversion. '
                             . 'Set to 0 to process all products at once.'
                         ),
+                    ],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Convert thumbnails'),
+                        'name' => self::CONFIG_THUMBS,
+                        'desc' => $this->l(
+                            'Also convert every generated thumbnail size (home_default, large_default, …), '
+                            . 'not just the original file. Required for WebP to actually be used on listing pages.'
+                        ),
+                        'values' => [
+                            ['id' => 'thumbs_on', 'value' => 1, 'label' => $this->l('Yes')],
+                            ['id' => 'thumbs_off', 'value' => 0, 'label' => $this->l('No')],
+                        ],
+                    ],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Serve WebP on the front office'),
+                        'name' => self::CONFIG_SERVE_FRONT,
+                        'desc' => $this->l(
+                            'Wraps front office <img> tags in a <picture> element offering the WebP file. '
+                            . 'Browsers without WebP support keep receiving the original image.'
+                        ),
+                        'values' => [
+                            ['id' => 'serve_front_on', 'value' => 1, 'label' => $this->l('Yes')],
+                            ['id' => 'serve_front_off', 'value' => 0, 'label' => $this->l('No')],
+                        ],
                     ],
                     [
                         'type' => 'switch',
@@ -276,6 +332,8 @@ class M4pWebpConverter extends Module
             self::CONFIG_MAX_PRODUCTS => (int) $this->getCfg(self::CONFIG_MAX_PRODUCTS),
             self::CONFIG_FORCE_REGEN => (int) $this->getCfg(self::CONFIG_FORCE_REGEN),
             self::CONFIG_ACTIVE_ONLY => (int) $this->getCfg(self::CONFIG_ACTIVE_ONLY),
+            self::CONFIG_THUMBS => (int) $this->getCfg(self::CONFIG_THUMBS),
+            self::CONFIG_SERVE_FRONT => (int) $this->getCfg(self::CONFIG_SERVE_FRONT),
         ];
     }
 
@@ -294,12 +352,18 @@ class M4pWebpConverter extends Module
 
     /**
      * Processes one batch of images and returns JSON progress data.
-     * Called when action=convertBatch is present in the request.
+     * Called when m4p_action=convertBatch is present in the request.
      * Terminates execution via die().
      */
     private function ajaxConvertBatch(): void
     {
-        $offset = (int) Tools::getValue('offset', 0);
+        // getContent() is only reached through AdminModules (token-checked), but the
+        // batch endpoint mutates files, so require the employee permission explicitly.
+        if (!$this->context->employee || !$this->context->employee->isLoggedBack()) {
+            $this->respondJson(['success' => false, 'error' => 'unauthorized'], 403);
+        }
+
+        $offset = max(0, (int) Tools::getValue('offset', 0));
         $batchSize = max(1, min(50, (int) Tools::getValue('batchSize', self::AJAX_BATCH_SIZE)));
         $maxProducts = (int) $this->getCfg(self::CONFIG_MAX_PRODUCTS);
         $quality = (int) $this->getCfg(self::CONFIG_QUALITY);
@@ -314,74 +378,89 @@ class M4pWebpConverter extends Module
 
         foreach ($rows as $row) {
             $idImage = (int) $row['id_image'];
-            $sourcePath = $this->findOriginalImagePath($idImage);
+            $idProduct = (int) $row['id_product'];
 
-            if ($sourcePath === null) {
-                $results[] = [
-                    'id_image' => $idImage,
-                    'id_product' => (int) $row['id_product'],
-                    'product_name' => $row['product_name'],
-                    'status' => 'skipped',
-                    'file' => null,
-                ];
-                continue;
-            }
+            $stats = $this->convertImageSet($idImage, $quality, $forceRegen);
 
-            $info = pathinfo($sourcePath);
-            $outputPath = $info['dirname'] . DIRECTORY_SEPARATOR . $info['filename'] . '-new_format.webp';
-
-            if (!$forceRegen && file_exists($outputPath)) {
-                $results[] = [
-                    'id_image' => $idImage,
-                    'id_product' => (int) $row['id_product'],
-                    'product_name' => $row['product_name'],
-                    'status' => 'skipped',
-                    'file' => basename($outputPath),
-                ];
-                continue;
-            }
-
-            $converted = $this->convertToWebP($sourcePath, $quality);
-
-            if (!$converted) {
+            if ($stats['failed'] > 0) {
                 PrestaShopLogger::addLog(
                     sprintf(
-                        '[M4P WebP Converter] Failed to convert image #%d (product #%d, file: %s)',
+                        '[M4P WebP Converter] %d file(s) failed to convert for image #%d (product #%d)',
+                        $stats['failed'],
                         $idImage,
-                        (int) $row['id_product'],
-                        $sourcePath
+                        $idProduct
                     ),
                     PrestaShopLogger::LOG_SEVERITY_LEVEL_ERROR,
                     null,
                     'Product',
-                    (int) $row['id_product']
+                    $idProduct
                 );
+            }
+
+            if ($stats['failed'] > 0) {
+                $status = 'error';
+            } elseif ($stats['converted'] > 0) {
+                $status = 'converted';
+            } else {
+                $status = 'skipped';
             }
 
             $results[] = [
                 'id_image' => $idImage,
-                'id_product' => (int) $row['id_product'],
+                'id_product' => $idProduct,
                 'product_name' => $row['product_name'],
-                'status' => $converted ? 'converted' : 'error',
-                'file' => $converted ? basename($outputPath) : null,
+                'status' => $status,
+                'file' => sprintf(
+                    '%d converted, %d skipped, %d failed',
+                    $stats['converted'],
+                    $stats['skipped'],
+                    $stats['failed']
+                ),
             ];
         }
 
         $newOffset = $offset + count($rows);
 
-        header('Content-Type: application/json; charset=utf-8');
-        die(json_encode([
+        // An empty batch always terminates the run. Without this the client would
+        // keep re-requesting the same offset forever whenever $total is larger
+        // than the number of rows actually returned (e.g. rows deleted mid-run).
+        $done = $rows === [] || $newOffset >= $total;
+
+        $this->respondJson([
             'success' => true,
             'total' => $total,
             'offset' => $newOffset,
-            'done' => $newOffset >= $total,
+            'done' => $done,
             'results' => $results,
-        ]));
+        ]);
+    }
+
+    /**
+     * Emits a JSON response and terminates. Any buffered output (notices, other
+     * modules' echoes) is discarded first so the payload stays parseable.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function respondJson(array $payload, int $statusCode = 200): void
+    {
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        $json = json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE);
+
+        if ($json === false) {
+            $json = '{"success":false,"error":"encoding_failed"}';
+            $statusCode = 500;
+        }
+
+        http_response_code($statusCode);
+        header('Content-Type: application/json; charset=utf-8');
+        die($json);
     }
 
     /**
      * Returns total number of images to process.
-     * Uses getValue() — no LIMIT needed, it is added automatically.
      */
     private function countImages(int $maxProducts, bool $activeOnly): int
     {
@@ -406,7 +485,7 @@ class M4pWebpConverter extends Module
                     ' . $activeJoin;
         }
 
-        return (int) $this->db->getValue($sql);
+        return (int) $this->db()->getValue($sql);
     }
 
     /**
@@ -441,7 +520,7 @@ class M4pWebpConverter extends Module
                 ORDER BY i.`id_product` ASC, i.`id_image` ASC
                 LIMIT ' . $limit . ' OFFSET ' . $offset;
 
-        return $this->db->executeS($sql) ?: [];
+        return $this->db()->executeS($sql) ?: [];
     }
 
     // -------------------------------------------------------------------------
@@ -507,6 +586,7 @@ class M4pWebpConverter extends Module
     {
         if (isset($params['id_image'])) {
             $this->processImageById((int) $params['id_image']);
+
             return;
         }
 
@@ -515,6 +595,7 @@ class M4pWebpConverter extends Module
             if ($imageId !== null) {
                 $this->processImageById((int) $imageId->getValue());
             }
+
             return;
         }
 
@@ -524,38 +605,288 @@ class M4pWebpConverter extends Module
     }
 
     // -------------------------------------------------------------------------
+    // Front office — serve WebP through <picture>
+    // -------------------------------------------------------------------------
+
+    /**
+     * Rewrites the rendered front office HTML so that every <img> whose file has a
+     * WebP twin on disk is wrapped in a <picture> element. Browsers that do not
+     * support WebP simply ignore the <source> and load the original <img>.
+     *
+     * The core passes 'html' by reference, so mutating it here changes the output.
+     */
+    public function hookActionOutputHTMLBefore(array &$params): void
+    {
+        if (!isset($params['html']) || !is_string($params['html'])) {
+            return;
+        }
+
+        if (!(bool) $this->getCfg(self::CONFIG_SERVE_FRONT)) {
+            return;
+        }
+
+        $params['html'] = $this->injectWebpSources($params['html']);
+    }
+
+    private function injectWebpSources(string $html): string
+    {
+        if (stripos($html, '<img') === false) {
+            return $html;
+        }
+
+        // Stash existing <picture> blocks so we never nest one inside another —
+        // themes that already ship art-directed images must be left untouched.
+        $stash = [];
+        $stashed = preg_replace_callback(
+            '#<picture\b.*?</picture>#is',
+            static function (array $m) use (&$stash): string {
+                $key = '<!--m4p-picture-' . count($stash) . '-->';
+                $stash[$key] = $m[0];
+
+                return $key;
+            },
+            $html
+        );
+
+        if ($stashed === null) {
+            return $html;
+        }
+
+        $rewritten = preg_replace_callback(
+            '#<img\b[^>]*>#i',
+            function (array $m): string {
+                return $this->wrapImgTag($m[0]);
+            },
+            $stashed
+        );
+
+        if ($rewritten === null) {
+            return $html;
+        }
+
+        return $stash === [] ? $rewritten : strtr($rewritten, $stash);
+    }
+
+    /**
+     * Wraps a single <img> tag in <picture> when a WebP twin exists.
+     * Returns the tag unchanged when it cannot be safely upgraded.
+     */
+    private function wrapImgTag(string $tag): string
+    {
+        if (!preg_match('#\ssrc\s*=\s*("|\')(.*?)\1#i', $tag, $src)) {
+            return $tag;
+        }
+
+        $webpSrc = $this->toWebpUrl($src[2]);
+
+        if ($webpSrc === null) {
+            return $tag;
+        }
+
+        $sourceSet = $webpSrc;
+
+        // A responsive image must keep its full candidate list, otherwise the
+        // browser would pick the WebP source and lose every other resolution.
+        if (preg_match('#\ssrcset\s*=\s*("|\')(.*?)\1#i', $tag, $srcset)) {
+            $converted = $this->toWebpSrcset($srcset[2]);
+
+            if ($converted === null) {
+                return $tag;
+            }
+
+            $sourceSet = $converted;
+        }
+
+        $source = '<source type="image/webp" srcset="' . htmlspecialchars($sourceSet, ENT_QUOTES, 'UTF-8') . '"';
+
+        if (preg_match('#\ssizes\s*=\s*("|\')(.*?)\1#i', $tag, $sizes)) {
+            $source .= ' sizes="' . htmlspecialchars($sizes[2], ENT_QUOTES, 'UTF-8') . '"';
+        }
+
+        return '<picture>' . $source . '>' . $tag . '</picture>';
+    }
+
+    /**
+     * Converts a full srcset attribute. Returns null unless EVERY candidate has a
+     * WebP twin — a partial list would silently downgrade some breakpoints.
+     */
+    private function toWebpSrcset(string $srcset): ?string
+    {
+        $candidates = preg_split('#\s*,\s*#', trim($srcset), -1, PREG_SPLIT_NO_EMPTY);
+
+        if ($candidates === false || $candidates === []) {
+            return null;
+        }
+
+        $converted = [];
+
+        foreach ($candidates as $candidate) {
+            $parts = preg_split('#\s+#', trim($candidate), 2);
+
+            if ($parts === false || $parts[0] === '') {
+                return null;
+            }
+
+            $webpUrl = $this->toWebpUrl($parts[0]);
+
+            if ($webpUrl === null) {
+                return null;
+            }
+
+            $converted[] = isset($parts[1]) ? $webpUrl . ' ' . $parts[1] : $webpUrl;
+        }
+
+        return implode(', ', $converted);
+    }
+
+    /**
+     * Maps an image URL to its WebP twin URL, or null when there is no such file.
+     *
+     * Only URLs under the shop's /img/ directory are considered, and the resolved
+     * filesystem path is confined to _PS_IMG_DIR_ so a crafted URL cannot probe
+     * arbitrary locations.
+     */
+    private function toWebpUrl(string $url): ?string
+    {
+        $url = trim($url);
+
+        if ($url === '' || strncmp($url, 'data:', 5) === 0) {
+            return null;
+        }
+
+        $decoded = html_entity_decode($url, ENT_QUOTES, 'UTF-8');
+        $path = parse_url($decoded, PHP_URL_PATH);
+
+        if (!is_string($path) || !preg_match('#\.(jpe?g|png|gif)$#i', $path)) {
+            return null;
+        }
+
+        $pos = strripos($path, '/img/');
+
+        if ($pos === false) {
+            return null;
+        }
+
+        $relative = rawurldecode(substr($path, $pos + strlen('/img/')));
+
+        if ($relative === '' || strpos($relative, '..') !== false || strpos($relative, "\0") !== false) {
+            return null;
+        }
+
+        $webpFile = preg_replace('#\.[^.]+$#', '', _PS_IMG_DIR_ . $relative) . self::WEBP_SUFFIX;
+
+        if (!$this->webpFileExists($webpFile)) {
+            return null;
+        }
+
+        // Rewrite the extension on the original URL so query strings, CDN hosts and
+        // protocol-relative prefixes are all preserved.
+        $webpUrl = preg_replace('#\.(jpe?g|png|gif)(?=$|[?\#])#i', self::WEBP_SUFFIX, $decoded, 1);
+
+        return $webpUrl === null ? null : $webpUrl;
+    }
+
+    private function webpFileExists(string $path): bool
+    {
+        if (!array_key_exists($path, $this->webpExistsCache)) {
+            $this->webpExistsCache[$path] = is_file($path);
+        }
+
+        return $this->webpExistsCache[$path];
+    }
+
+    // -------------------------------------------------------------------------
     // Core conversion logic
     // -------------------------------------------------------------------------
 
     /**
-     * Locate and convert the original image for a given image ID.
+     * Convert every file belonging to an image ID (original + thumbnails).
      */
     public function processImageById(int $idImage): bool
     {
-        $sourcePath = $this->findOriginalImagePath($idImage);
-        if ($sourcePath === null) {
-            return false;
+        $quality = (int) $this->getCfg(self::CONFIG_QUALITY);
+        $stats = $this->convertImageSet($idImage, $quality, false);
+
+        return $stats['failed'] === 0 && ($stats['converted'] > 0 || $stats['skipped'] > 0);
+    }
+
+    /**
+     * Convert the original file and, when enabled, every generated thumbnail.
+     *
+     * @return array{converted: int, skipped: int, failed: int}
+     */
+    private function convertImageSet(int $idImage, int $quality, bool $forceRegen): array
+    {
+        $stats = ['converted' => 0, 'skipped' => 0, 'failed' => 0];
+
+        foreach ($this->findImageFiles($idImage) as $sourcePath) {
+            $outputPath = $this->getWebpPath($sourcePath);
+
+            if (!$forceRegen && file_exists($outputPath)) {
+                ++$stats['skipped'];
+                continue;
+            }
+
+            if ($this->convertToWebP($sourcePath, $quality)) {
+                ++$stats['converted'];
+            } else {
+                ++$stats['failed'];
+            }
         }
 
-        $quality = (int) $this->getCfg(self::CONFIG_QUALITY);
+        return $stats;
+    }
 
-        return $this->convertToWebP($sourcePath, $quality);
+    /**
+     * Every file on disk for a given image ID: the original plus each thumbnail
+     * size PrestaShop generated for it (`1234-home_default.jpg` and friends).
+     *
+     * PrestaShop stores images at:
+     *   img/p/<id_digits_split>/<id_image>[-<image_type>].<ext>
+     * e.g. image 1234 -> img/p/1/2/3/4/1234.jpg
+     *
+     * @return array<int, string>
+     */
+    protected function findImageFiles(int $idImage): array
+    {
+        $folder = _PS_PRODUCT_IMG_DIR_ . Image::getImgFolderStatic($idImage);
+        $withThumbs = (bool) $this->getCfg(self::CONFIG_THUMBS);
+        $files = [];
+
+        foreach (self::SOURCE_EXTENSIONS as $ext) {
+            $original = $folder . $idImage . '.' . $ext;
+
+            if (is_file($original)) {
+                $files[] = $original;
+            }
+
+            if (!$withThumbs) {
+                continue;
+            }
+
+            // The glob pattern requires the dash immediately after the ID, so image
+            // 1234 never picks up files belonging to 12340. Already-generated
+            // "-new_format.webp" files cannot match either — they are not in
+            // SOURCE_EXTENSIONS.
+            foreach (glob($folder . $idImage . '-*.' . $ext) ?: [] as $thumb) {
+                $files[] = $thumb;
+            }
+        }
+
+        return $files;
     }
 
     /**
      * Resolve the filesystem path of the original (non-thumbnail) product image.
-     *
-     * PrestaShop stores images at:
-     *   img/p/<id_digits_split>/<id_image>.<ext>
-     * e.g. image 1234 -> img/p/1/2/3/4/1234.jpg
      */
     protected function findOriginalImagePath(int $idImage): ?string
     {
         $folder = _PS_PRODUCT_IMG_DIR_ . Image::getImgFolderStatic($idImage);
 
-        foreach (['jpg', 'jpeg', 'png', 'gif', 'webp'] as $ext) {
+        foreach (self::SOURCE_EXTENSIONS as $ext) {
             $path = $folder . $idImage . '.' . $ext;
-            if (file_exists($path)) {
+
+            if (is_file($path)) {
                 return $path;
             }
         }
@@ -564,19 +895,39 @@ class M4pWebpConverter extends Module
     }
 
     /**
-     * Convert a source image to WebP.
-     *
-     * Output path: same directory, filename + '-new_format.webp'
+     * Output path for a source file: same directory, filename + '-new_format.webp'
      * e.g. /img/p/1/2/3/4/1234.jpg -> /img/p/1/2/3/4/1234-new_format.webp
+     */
+    private function getWebpPath(string $sourcePath): string
+    {
+        $info = pathinfo($sourcePath);
+
+        return $info['dirname'] . DIRECTORY_SEPARATOR . $info['filename'] . self::WEBP_SUFFIX;
+    }
+
+    /**
+     * Convert a source image to WebP.
      */
     public function convertToWebP(string $sourcePath, int $quality = 85): bool
     {
-        if (!file_exists($sourcePath)) {
+        if (!is_file($sourcePath)) {
             return false;
         }
 
-        $info = pathinfo($sourcePath);
-        $outputPath = $info['dirname'] . DIRECTORY_SEPARATOR . $info['filename'] . '-new_format.webp';
+        // Guard against a missing/corrupted configuration value producing quality 0.
+        $quality = max(1, min(100, $quality));
+
+        $outputPath = $this->getWebpPath($sourcePath);
+        $directory = dirname($sourcePath);
+
+        if (!is_writable($directory)) {
+            PrestaShopLogger::addLog(
+                sprintf('[M4P WebP Converter] Directory is not writable: %s', $directory),
+                PrestaShopLogger::LOG_SEVERITY_LEVEL_ERROR
+            );
+
+            return false;
+        }
 
         $imageSize = getimagesize($sourcePath);
 
@@ -591,8 +942,8 @@ class M4pWebpConverter extends Module
 
         $mimeToLoader = [
             IMAGETYPE_JPEG => 'imagecreatefromjpeg',
-            IMAGETYPE_PNG  => 'imagecreatefrompng',
-            IMAGETYPE_GIF  => 'imagecreatefromgif',
+            IMAGETYPE_PNG => 'imagecreatefrompng',
+            IMAGETYPE_GIF => 'imagecreatefromgif',
             IMAGETYPE_WEBP => 'imagecreatefromwebp',
         ];
 
@@ -636,9 +987,16 @@ class M4pWebpConverter extends Module
             return false;
         }
 
-        // Preserve alpha channel for PNG and GIF
-        if ($imageType === IMAGETYPE_PNG || $imageType === IMAGETYPE_GIF) {
-            imagealphablending($image, true);
+        // imagewebp() cannot write palette images — GIFs and 8-bit PNGs must be
+        // promoted to truecolor first, otherwise the call fails outright.
+        if (!imageistruecolor($image)) {
+            imagepalettetotruecolor($image);
+        }
+
+        // Alpha must be preserved with blending DISABLED: with blending on, GD
+        // composites incoming pixels and the saved image loses transparency.
+        if ($imageType === IMAGETYPE_PNG || $imageType === IMAGETYPE_GIF || $imageType === IMAGETYPE_WEBP) {
+            imagealphablending($image, false);
             imagesavealpha($image, true);
         }
 
@@ -646,6 +1004,12 @@ class M4pWebpConverter extends Module
         imagedestroy($image);
 
         if (!$result) {
+            // A failed write can leave a truncated file behind, which would then be
+            // treated as "already converted" on the next run — remove it.
+            if (file_exists($outputPath)) {
+                @unlink($outputPath);
+            }
+
             PrestaShopLogger::addLog(
                 sprintf('[M4P WebP Converter] imagewebp() failed writing to: %s', $outputPath),
                 PrestaShopLogger::LOG_SEVERITY_LEVEL_ERROR
