@@ -587,8 +587,20 @@ class M4pWebpConverter extends Module
             return false;
         }
 
+        // Guard against a missing/corrupted configuration value producing quality 0.
+        $quality = max(1, min(100, $quality));
+
         $info = pathinfo($sourcePath);
         $outputPath = $info['dirname'] . DIRECTORY_SEPARATOR . $info['filename'] . '-new_format.webp';
+
+        if (!is_writable($info['dirname'])) {
+            PrestaShopLogger::addLog(
+                sprintf('[M4P WebP Converter] Directory is not writable: %s', $info['dirname']),
+                PrestaShopLogger::LOG_SEVERITY_LEVEL_ERROR
+            );
+
+            return false;
+        }
 
         $imageSize = getimagesize($sourcePath);
 
@@ -648,9 +660,16 @@ class M4pWebpConverter extends Module
             return false;
         }
 
-        // Preserve alpha channel for PNG and GIF
-        if ($imageType === IMAGETYPE_PNG || $imageType === IMAGETYPE_GIF) {
-            imagealphablending($image, true);
+        // imagewebp() cannot write palette images — GIFs and 8-bit PNGs must be
+        // promoted to truecolor first, otherwise the call fails outright.
+        if (!imageistruecolor($image)) {
+            imagepalettetotruecolor($image);
+        }
+
+        // Alpha must be preserved with blending DISABLED: with blending on, GD
+        // composites incoming pixels and the saved image loses transparency.
+        if ($imageType === IMAGETYPE_PNG || $imageType === IMAGETYPE_GIF || $imageType === IMAGETYPE_WEBP) {
+            imagealphablending($image, false);
             imagesavealpha($image, true);
         }
 
@@ -658,6 +677,12 @@ class M4pWebpConverter extends Module
         imagedestroy($image);
 
         if (!$result) {
+            // A failed write can leave a truncated file behind, which would then be
+            // treated as "already converted" on the next run — remove it.
+            if (file_exists($outputPath)) {
+                @unlink($outputPath);
+            }
+
             PrestaShopLogger::addLog(
                 sprintf('[M4P WebP Converter] imagewebp() failed writing to: %s', $outputPath),
                 PrestaShopLogger::LOG_SEVERITY_LEVEL_ERROR
