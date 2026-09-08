@@ -27,11 +27,24 @@ class M4pWebpConverter extends Module
     public const CONFIG_ACTIVE_ONLY = 'M4PWEBP_ACTIVE_ONLY';
     private const AJAX_BATCH_SIZE = 10;
 
-    /** @var Db */
+    /** @var Db|null */
     private $db;
 
     /** @var array<string, string> Local cache for Configuration::get() reads. */
     private $config = [];
+
+    /**
+     * Lazily resolved DB handle — avoids opening a connection just because the
+     * module was instantiated (e.g. on the module list page).
+     */
+    private function db(): Db
+    {
+        if ($this->db === null) {
+            $this->db = Db::getInstance();
+        }
+
+        return $this->db;
+    }
 
     /**
      * Returns a cached configuration value.
@@ -59,7 +72,6 @@ class M4pWebpConverter extends Module
         $this->author = 'Modules4Presta.io';
         $this->need_instance = 0;
         $this->bootstrap = true;
-        $this->db = Db::getInstance();
 
         parent::__construct();
 
@@ -406,7 +418,7 @@ class M4pWebpConverter extends Module
                     ' . $activeJoin;
         }
 
-        return (int) $this->db->getValue($sql);
+        return (int) $this->db()->getValue($sql);
     }
 
     /**
@@ -441,7 +453,7 @@ class M4pWebpConverter extends Module
                 ORDER BY i.`id_product` ASC, i.`id_image` ASC
                 LIMIT ' . $limit . ' OFFSET ' . $offset;
 
-        return $this->db->executeS($sql) ?: [];
+        return $this->db()->executeS($sql) ?: [];
     }
 
     // -------------------------------------------------------------------------
