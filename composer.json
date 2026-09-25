@@ -1,0 +1,19 @@
+{
+    "name": "modules4presta/m4pwebpconverter",
+    "description": "Converts PrestaShop product images to WebP and serves them on the front office.",
+    "type": "prestashop-module",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Nice Code sp. z o.o. (Modules4Presta)",
+            "email": "contact@modules4presta.io",
+            "homepage": "https://modules4presta.io"
+        }
+    ],
+    "require": {
+        "php": ">=8.0"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

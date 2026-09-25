@@ -3,16 +3,11 @@
 declare(strict_types=1);
 
 /**
- * LICENCE
+ * m4pwebpconverter
  *
- * ALL RIGHTS RESERVED.
- * YOU ARE NOT ALLOWED TO COPY/EDIT/SHARE/WHATEVER.
- *
- * IN CASE OF ANY PROBLEM CONTACT AUTHOR.
- *
- *  @author    Jan Kołodziej (contact@modules4presta.io)
- *  @copyright modules4presta.io
- *  @license   ALL RIGHTS RESERVED
+ * @author    Modules4Presta <contact@modules4presta.io>
+ * @copyright 2026 Nice Code sp. z o.o. (Modules4Presta)
+ * @license   https://opensource.org/licenses/MIT MIT License
  */
 
 if (!defined('_PS_VERSION_')) {
@@ -81,25 +76,33 @@ class M4pWebpConverter extends Module
         $this->name = 'm4pwebpconverter';
         $this->tab = 'administration';
         $this->version = '1.1.0';
-        $this->author = 'Modules4Presta.io';
+        $this->author = 'Modules4Presta';
         $this->need_instance = 0;
         $this->bootstrap = true;
 
         parent::__construct();
 
-        $this->displayName = $this->l('M4P WebP Converter');
-        $this->description = $this->l(
-            'Converts product images to WebP and serves them on the front office to cut page weight and improve Core Web Vitals.'
+        $this->displayName = $this->trans('M4P WebP Converter', [], 'Modules.M4pwebpconverter.Admin');
+        $this->description = $this->trans(
+            'Converts product images to WebP and serves them on the front office to cut page weight and improve Core Web Vitals.',
+            [],
+            'Modules.M4pwebpconverter.Admin'
         );
-        $this->confirmUninstall = $this->l('Are you sure you want to uninstall this module?');
+        $this->confirmUninstall = $this->trans(
+            'Are you sure you want to uninstall this module?',
+            [],
+            'Modules.M4pwebpconverter.Admin'
+        );
         $this->ps_versions_compliancy = ['min' => '8.0.0', 'max' => '9.99.99'];
     }
 
     public function install()
     {
         if (!function_exists('imagewebp')) {
-            $this->_errors[] = $this->l(
-                'PHP GD library with WebP support is required. Please enable it on your server.'
+            $this->_errors[] = $this->trans(
+                'PHP GD library with WebP support is required. Please enable it on your server.',
+                [],
+                'Modules.M4pwebpconverter.Admin'
             );
 
             return false;
@@ -153,7 +156,11 @@ class M4pWebpConverter extends Module
             $serveFront = (int) (bool) Tools::getValue(self::CONFIG_SERVE_FRONT);
 
             if ($quality < 1 || $quality > 100) {
-                $output .= $this->displayError($this->l('Quality must be between 1 and 100.'));
+                $output .= $this->displayError($this->trans(
+                    'Quality must be between 1 and 100.',
+                    [],
+                    'Modules.M4pwebpconverter.Admin'
+                ));
             } else {
                 Configuration::updateValue(self::CONFIG_QUALITY, $quality);
                 Configuration::updateValue(self::CONFIG_MAX_PRODUCTS, max(0, $maxProducts));
@@ -162,7 +169,11 @@ class M4pWebpConverter extends Module
                 Configuration::updateValue(self::CONFIG_THUMBS, $thumbs);
                 Configuration::updateValue(self::CONFIG_SERVE_FRONT, $serveFront);
                 $this->config = [];
-                $output .= $this->displayConfirmation($this->l('Settings saved successfully.'));
+                $output .= $this->displayConfirmation($this->trans(
+                    'Settings saved successfully.',
+                    [],
+                    'Modules.M4pwebpconverter.Admin'
+                ));
             }
         }
 
@@ -192,78 +203,129 @@ class M4pWebpConverter extends Module
         $fieldsForm = [
             'form' => [
                 'legend' => [
-                    'title' => $this->l('Conversion Settings'),
+                    'title' => $this->trans('Conversion Settings', [], 'Modules.M4pwebpconverter.Admin'),
                     'icon' => 'icon-cogs',
                 ],
                 'input' => [
                     [
                         'type' => 'text',
-                        'label' => $this->l('WebP Quality (1–100)'),
+                        'label' => $this->trans('WebP Quality (1–100)', [], 'Modules.M4pwebpconverter.Admin'),
                         'name' => self::CONFIG_QUALITY,
                         'size' => 5,
                         'required' => true,
-                        'desc' => $this->l('Quality of the output WebP image. Recommended value: 80–90.'),
+                        'desc' => $this->trans(
+                            'Quality of the output WebP image. Recommended value: 80–90.',
+                            [],
+                            'Modules.M4pwebpconverter.Admin'
+                        ),
                     ],
                     [
                         'type' => 'text',
-                        'label' => $this->l('Max products per bulk run (0 = all)'),
+                        'label' => $this->trans(
+                            'Max products per bulk run (0 = all)',
+                            [],
+                            'Modules.M4pwebpconverter.Admin'
+                        ),
                         'name' => self::CONFIG_MAX_PRODUCTS,
                         'size' => 10,
                         'required' => false,
-                        'desc' => $this->l(
-                            'Limit how many products are processed during bulk conversion. '
-                            . 'Set to 0 to process all products at once.'
-                        ),
+                        'desc' => $this->trans(
+                            'Limit how many products are processed during bulk conversion. Set to 0 to process all products at once.',
+     [],
+     'Modules.M4pwebpconverter.Admin'
+ ),
                     ],
                     [
                         'type' => 'switch',
-                        'label' => $this->l('Convert thumbnails'),
+                        'label' => $this->trans('Convert thumbnails', [], 'Modules.M4pwebpconverter.Admin'),
                         'name' => self::CONFIG_THUMBS,
-                        'desc' => $this->l(
-                            'Also convert every generated thumbnail size (home_default, large_default, …), '
-                            . 'not just the original file. Required for WebP to actually be used on listing pages.'
-                        ),
+                        'desc' => $this->trans(
+                            'Also convert every generated thumbnail size (home_default, large_default, …), not just the original file. Required for WebP to actually be used on listing pages.',
+     [],
+     'Modules.M4pwebpconverter.Admin'
+ ),
                         'values' => [
-                            ['id' => 'thumbs_on', 'value' => 1, 'label' => $this->l('Yes')],
-                            ['id' => 'thumbs_off', 'value' => 0, 'label' => $this->l('No')],
+                            ['id' => 'thumbs_on', 'value' => 1, 'label' => $this->trans(
+                                'Yes',
+                                [],
+                                'Modules.M4pwebpconverter.Admin'
+                            )],
+                            ['id' => 'thumbs_off', 'value' => 0, 'label' => $this->trans(
+                                'No',
+                                [],
+                                'Modules.M4pwebpconverter.Admin'
+                            )],
                         ],
                     ],
                     [
                         'type' => 'switch',
-                        'label' => $this->l('Serve WebP on the front office'),
+                        'label' => $this->trans('Serve WebP on the front office', [], 'Modules.M4pwebpconverter.Admin'),
                         'name' => self::CONFIG_SERVE_FRONT,
-                        'desc' => $this->l(
-                            'Wraps front office <img> tags in a <picture> element offering the WebP file. '
-                            . 'Browsers without WebP support keep receiving the original image.'
+                        'desc' => $this->trans(
+                            'Wraps front office <img> tags in a <picture> element offering the WebP file. Browsers without WebP support keep receiving the original image.',
+     [],
+     'Modules.M4pwebpconverter.Admin'
+ ),
+                        'values' => [
+                            ['id' => 'serve_front_on', 'value' => 1, 'label' => $this->trans(
+                                'Yes',
+                                [],
+                                'Modules.M4pwebpconverter.Admin'
+                            )],
+                            ['id' => 'serve_front_off', 'value' => 0, 'label' => $this->trans(
+                                'No',
+                                [],
+                                'Modules.M4pwebpconverter.Admin'
+                            )],
+                        ],
+                    ],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->trans('Force regenerate', [], 'Modules.M4pwebpconverter.Admin'),
+                        'name' => self::CONFIG_FORCE_REGEN,
+                        'desc' => $this->trans(
+                            'When enabled, existing WebP files are overwritten during bulk conversion.',
+                            [],
+                            'Modules.M4pwebpconverter.Admin'
                         ),
                         'values' => [
-                            ['id' => 'serve_front_on', 'value' => 1, 'label' => $this->l('Yes')],
-                            ['id' => 'serve_front_off', 'value' => 0, 'label' => $this->l('No')],
+                            ['id' => 'force_regen_on', 'value' => 1, 'label' => $this->trans(
+                                'Yes',
+                                [],
+                                'Modules.M4pwebpconverter.Admin'
+                            )],
+                            ['id' => 'force_regen_off', 'value' => 0, 'label' => $this->trans(
+                                'No',
+                                [],
+                                'Modules.M4pwebpconverter.Admin'
+                            )],
                         ],
                     ],
                     [
                         'type' => 'switch',
-                        'label' => $this->l('Force regenerate'),
-                        'name' => self::CONFIG_FORCE_REGEN,
-                        'desc' => $this->l('When enabled, existing WebP files are overwritten during bulk conversion.'),
-                        'values' => [
-                            ['id' => 'force_regen_on', 'value' => 1, 'label' => $this->l('Yes')],
-                            ['id' => 'force_regen_off', 'value' => 0, 'label' => $this->l('No')],
-                        ],
-                    ],
-                    [
-                        'type' => 'switch',
-                        'label' => $this->l('Active products only'),
+                        'label' => $this->trans('Active products only', [], 'Modules.M4pwebpconverter.Admin'),
                         'name' => self::CONFIG_ACTIVE_ONLY,
-                        'desc' => $this->l('When enabled, only images belonging to active products are converted.'),
+                        'desc' => $this->trans(
+                            'When enabled, only images belonging to active products are converted.',
+                            [],
+                            'Modules.M4pwebpconverter.Admin'
+                        ),
                         'values' => [
-                            ['id' => 'active_only_on', 'value' => 1, 'label' => $this->l('Yes')],
-                            ['id' => 'active_only_off', 'value' => 0, 'label' => $this->l('No')],
+                            ['id' => 'active_only_on', 'value' => 1, 'label' => $this->trans(
+                                'Yes',
+                                [],
+                                'Modules.M4pwebpconverter.Admin'
+                            )],
+                            ['id' => 'active_only_off', 'value' => 0, 'label' => $this->trans(
+                                'No',
+                                [],
+                                'Modules.M4pwebpconverter.Admin'
+                            )],
                         ],
                     ],
                 ],
                 'submit' => [
-                    'title' => $this->l('Save'),
+                    'title' => $this->trans('Save', [], 'Modules.M4pwebpconverter.Admin'),
                 ],
             ],
         ];
@@ -275,8 +337,12 @@ class M4pWebpConverter extends Module
     {
         $maxProducts = (int) $this->getCfg(self::CONFIG_MAX_PRODUCTS);
         $btnLabel = $maxProducts > 0
-            ? sprintf($this->l('Convert images for up to %d products'), $maxProducts)
-            : $this->l('Convert images for all products');
+            ? sprintf($this->trans(
+                'Convert images for up to %d products',
+                [],
+                'Modules.M4pwebpconverter.Admin'
+            ), $maxProducts)
+            : $this->trans('Convert images for all products', [], 'Modules.M4pwebpconverter.Admin');
 
         $ajaxUrl = $this->context->link->getAdminLink('AdminModules', true, [], [
             'configure' => $this->name,
@@ -289,12 +355,15 @@ class M4pWebpConverter extends Module
         return '
         <div class="panel">
             <div class="panel-heading">
-                <i class="icon-picture"></i>&nbsp;' . $this->l('Bulk Image Conversion') . '
+                <i class="icon-picture"></i>&nbsp;' . $this->trans(
+                    'Bulk Image Conversion',
+                    [],
+                    'Modules.M4pwebpconverter.Admin'
+                ) . '
             </div>
             <div class="panel-body">
-                <p>' . $this->l(
-                    'Conversion runs directly in the browser — images that already have a WebP file are skipped automatically.'
-                ) . '</p>
+                <p>' . $this->trans(
+                    'Conversion runs directly in the browser — images that already have a WebP file are skipped automatically.', [], 'Modules.M4pwebpconverter.Admin') . '</p>
 
                 <button type="button" id="m4p-convert-btn" class="btn btn-warning btn-lg">
                     <i class="icon-cogs"></i>&nbsp;' . $btnLabel . '
