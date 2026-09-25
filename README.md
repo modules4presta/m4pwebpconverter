@@ -110,9 +110,8 @@ MIT — see [LICENSE](LICENSE). Free to use commercially, fork and modify; keep 
 
 ## Contributing
 
-Bug reports and pull requests are welcome. Please include your PrestaShop version, PHP version and
-the steps to reproduce. For security issues, write to contact@modules4presta.io instead of opening a
-public issue.
+Bug reports and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). For security
+issues, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ---
 
