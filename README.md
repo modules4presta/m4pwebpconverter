@@ -104,4 +104,16 @@ Yes. Turn off front office delivery to instantly stop serving WebP, or uninstall
 
 **Keywords:** PrestaShop WebP module, WebP converter PrestaShop 8, image optimization PrestaShop, Core Web Vitals PrestaShop, page speed optimization, LCP optimization, product image compression, PrestaShop SEO module.
 
-© modules4presta.io — All rights reserved.
+## License
+
+MIT — see [LICENSE](LICENSE). Free to use commercially, fork and modify; keep the copyright notice.
+
+## Contributing
+
+Bug reports and pull requests are welcome. Please include your PrestaShop version, PHP version and
+the steps to reproduce. For security issues, write to contact@modules4presta.io instead of opening a
+public issue.
+
+---
+
+© Nice Code sp. z o.o. (Modules4Presta) — released under the MIT license.

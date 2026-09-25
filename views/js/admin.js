@@ -1,3 +1,11 @@
+/**
+ * m4pwebpconverter
+ *
+ * @author    Modules4Presta <contact@modules4presta.io>
+ * @copyright 2026 Nice Code sp. z o.o. (Modules4Presta)
+ * @license   https://opensource.org/licenses/MIT MIT License
+ */
+
 /* global $, m4pAjaxUrl, m4pBatchSize */
 (function ($) {
     'use strict';
