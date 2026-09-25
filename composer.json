@@ -7,7 +7,7 @@
         {
             "name": "Nice Code sp. z o.o. (Modules4Presta)",
             "email": "contact@modules4presta.io",
-            "homepage": "https://modules4presta.io"
+            "homepage": "https://nice-code.com"
         }
     ],
     "require": {
@@ -15,5 +15,6 @@
     },
     "config": {
         "sort-packages": true
-    }
+    },
+    "homepage": "https://nice-code.com/pl/darmowa-optymalizacja-sklepu-prestashop"
 }

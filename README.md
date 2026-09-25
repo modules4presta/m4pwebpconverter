@@ -115,4 +115,6 @@ issues, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ---
 
+Built by [Nice Code](https://nice-code.com) — we optimise and maintain PrestaShop stores.
+
 © Nice Code sp. z o.o. (Modules4Presta) — released under the MIT license.
