@@ -1,0 +1,111 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+  <file original="module" source-language="en-US" target-language="pl-PL" datatype="plaintext">
+    <body>
+      <trans-unit id="40ceca3c81010d76e0a0ba2c20e55254">
+        <source>M4P WebP Converter</source>
+        <target>M4P Konwerter WebP</target>
+      </trans-unit>
+      <trans-unit id="44f7552e53525ad82202b0b47d0fb99c">
+        <source>Converts product images to WebP and serves them on the front office to cut page weight and improve Core Web Vitals.</source>
+        <target>Konwertuje zdjęcia produktów do formatu WebP i serwuje je na froncie, żeby odchudzić strony i poprawić Core Web Vitals.</target>
+      </trans-unit>
+      <trans-unit id="bb8956c67b82c7444a80c6b2433dd8b4">
+        <source>Are you sure you want to uninstall this module?</source>
+        <target>Czy na pewno chcesz odinstalować ten moduł?</target>
+      </trans-unit>
+      <trans-unit id="30f0b60f1b646feb1e66f815ad4e2511">
+        <source>PHP GD library with WebP support is required. Please enable it on your server.</source>
+        <target>Wymagana jest biblioteka PHP GD z obsługą WebP. Włącz ją na serwerze.</target>
+      </trans-unit>
+      <trans-unit id="0dd3517aa3d4592690a9dc5047cb2739">
+        <source>Quality must be between 1 and 100.</source>
+        <target>Jakość musi mieścić się w zakresie od 1 do 100.</target>
+      </trans-unit>
+      <trans-unit id="4d9ac946f92f7211e40671513c72fd09">
+        <source>Settings saved successfully.</source>
+        <target>Ustawienia zapisane.</target>
+      </trans-unit>
+      <trans-unit id="8f1035e8a1dc693149a3584173c321a0">
+        <source>Conversion Settings</source>
+        <target>Ustawienia konwersji</target>
+      </trans-unit>
+      <trans-unit id="d6f0655da5fb9c0fc4997d9a76e0300f">
+        <source>WebP Quality (1–100)</source>
+        <target>Jakość WebP (1–100)</target>
+      </trans-unit>
+      <trans-unit id="1f3d285e40411db74f7ba42b93c772fa">
+        <source>Quality of the output WebP image. Recommended value: 80–90.</source>
+        <target>Jakość wynikowego pliku WebP. Zalecana wartość: 80–90.</target>
+      </trans-unit>
+      <trans-unit id="c666bbf1a6db507e575f401460646467">
+        <source>Max products per bulk run (0 = all)</source>
+        <target>Maksymalnie produktów na jedno uruchomienie (0 = wszystkie)</target>
+      </trans-unit>
+      <trans-unit id="24c6d626b287138fe731790f82ba8873">
+        <source>Limit how many products are processed during bulk conversion. Set to 0 to process all products at once.</source>
+        <target>Ogranicza liczbę produktów przetwarzanych podczas konwersji zbiorczej. Wartość 0 oznacza wszystkie produkty naraz.</target>
+      </trans-unit>
+      <trans-unit id="802870ee4ba32619b8ed2cbbb52851c8">
+        <source>Convert thumbnails</source>
+        <target>Konwertuj miniatury</target>
+      </trans-unit>
+      <trans-unit id="ea1ff96af376c0dc9886063c70f7c6bd">
+        <source>Also convert every generated thumbnail size (home_default, large_default, …), not just the original file. Required for WebP to actually be used on listing pages.</source>
+        <target>Konwertuje także wszystkie generowane rozmiary miniatur (home_default, large_default, …), nie tylko plik źródłowy. Bez tego WebP nie zadziała na listach produktów.</target>
+      </trans-unit>
+      <trans-unit id="93cba07454f06a4a960172bbd6e2a435">
+        <source>Yes</source>
+        <target>Tak</target>
+      </trans-unit>
+      <trans-unit id="bafd7322c6e97d25b6299b5d6fe8920b">
+        <source>No</source>
+        <target>Nie</target>
+      </trans-unit>
+      <trans-unit id="72e40b84b4a7c6efebe0d3792e018e23">
+        <source>Serve WebP on the front office</source>
+        <target>Serwuj WebP na froncie sklepu</target>
+      </trans-unit>
+      <trans-unit id="9fb65db6bf7f927fcd43a558fd11044b">
+        <source>Wraps front office &lt;img&gt; tags in a &lt;picture&gt; element offering the WebP file. Browsers without WebP support keep receiving the original image.</source>
+        <target>Opakowuje znaczniki &lt;img&gt; na froncie w element &lt;picture&gt; z plikiem WebP. Przeglądarki bez obsługi WebP dostają oryginalne zdjęcie.</target>
+      </trans-unit>
+      <trans-unit id="faf3809df7a0e2babf132260863352fd">
+        <source>Force regenerate</source>
+        <target>Wymuś ponowną konwersję</target>
+      </trans-unit>
+      <trans-unit id="d3e704cad6e890f490637a1d99812272">
+        <source>When enabled, existing WebP files are overwritten during bulk conversion.</source>
+        <target>Po włączeniu istniejące pliki WebP są nadpisywane podczas konwersji zbiorczej.</target>
+      </trans-unit>
+      <trans-unit id="3370227f376554b1388091b4f2862269">
+        <source>Active products only</source>
+        <target>Tylko aktywne produkty</target>
+      </trans-unit>
+      <trans-unit id="349de7628e849a927838cba25e6c92fd">
+        <source>When enabled, only images belonging to active products are converted.</source>
+        <target>Po włączeniu konwertowane są wyłącznie zdjęcia aktywnych produktów.</target>
+      </trans-unit>
+      <trans-unit id="c9cc8cce247e49bae79f15173ce97354">
+        <source>Save</source>
+        <target>Zapisz</target>
+      </trans-unit>
+      <trans-unit id="af91fb9d2bc5b17b3a63db51c460a08d">
+        <source>Convert images for up to %d products</source>
+        <target>Konwertuj zdjęcia dla maksymalnie %d produktów</target>
+      </trans-unit>
+      <trans-unit id="7582528ba8af71a309f08f13d4b70f2f">
+        <source>Convert images for all products</source>
+        <target>Konwertuj zdjęcia wszystkich produktów</target>
+      </trans-unit>
+      <trans-unit id="a5458b647a5ab0e30c6830a425d06811">
+        <source>Bulk Image Conversion</source>
+        <target>Konwersja zbiorcza zdjęć</target>
+      </trans-unit>
+      <trans-unit id="a64a978ff25931eebf56a89526de120e">
+        <source>Conversion runs directly in the browser — images that already have a WebP file are skipped automatically.</source>
+        <target>Konwersja działa bezpośrednio w przeglądarce — zdjęcia, które mają już plik WebP, są pomijane.</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
